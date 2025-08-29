@@ -3,15 +3,14 @@ import { crud } from "./baseController.js";
 
 import { Angsuran, Pinjaman, Kas, sequelize } from "../models/index.js";
 import { postJournal } from "../utils/accounting.js";
-import { wrapAsync } from "../utils/wrapAsync.js";
 
 const base = crud(Angsuran, []);
 
 const akun = () => ({
     kas: Number(process.env.ID_KAS),
-    piutang: Number(process.env.ID_PIUTANG_PINJAMAN),
+    piutang: Number(process.env.ID_PIUTANG_ANGGOTA),
     pendapatanBunga: Number(process.env.ID_PENDAPATAN_BUNGA),
-    pendapatanDenda: Number(process.env.ID_PENDAPATAN_DENDA),
+    pendapatanDenda: Number(process.env.ID_PENDAPATAN_JASA),
 });
 
 

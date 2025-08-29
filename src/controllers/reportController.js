@@ -5,14 +5,17 @@ import { wrapAsync } from "../utils/wrapAsync.js";
 export const neraca = wrapAsync(async (req, res) => {
     const { sampai } = req.query;
     const rows = await JurnalDetail.findAll({
-        include: [{ model: Akun, as: "akun", attributes: ["id_akun", "kode_akun", "nama_akun", "kategori", "normal_balance"] },
-        { model: JurnalHeader, as: "header", attributes: ["tgl"] }],
+        include: [
+            { model: Akun, as: "akun", attributes: ["id_akun", "kode_akun", "nama_akun", "kategori", "normal_balance"] },
+            { model: JurnalHeader, as: "header", attributes: ["tgl"] }
+        ],
         where: sampai ? { "$header.tgl$": { [Sequelize.Op.lte]: sampai } } : {},
         raw: true
     });
-    console.log(rows);
 
     const saldo = {};
+    let totalDebit = 0, totalKredit = 0;
+
     for (const r of rows) {
         const key = r["akun.id_akun"];
         saldo[key] = saldo[key] || {
@@ -25,12 +28,32 @@ export const neraca = wrapAsync(async (req, res) => {
         };
         saldo[key].debit += Number(r.debit || 0);
         saldo[key].kredit += Number(r.kredit || 0);
+
+        totalDebit += Number(r.debit || 0);
+        totalKredit += Number(r.kredit || 0);
     }
+
     const hasil = Object.values(saldo).map(a => {
-        const net = a.normal_balance === "debit" ? a.debit - a.kredit : a.kredit - a.debit;
+        const net = a.normal_balance === "debit"
+            ? a.debit - a.kredit
+            : a.kredit - a.debit;
         return { ...a, saldo: Number(net.toFixed(2)) };
-    }).filter(a => ["aset", "liabilitas", "modal"].includes(a.kategori));
-    res.json({ sampai: sampai || null, akun: hasil });
+    }).filter(a => ["aset", "kewajiban", "ekuitas"].includes(a.kategori));
+
+    // === Tambahkan info seimbang atau tidak ===
+    const selisih = totalDebit - totalKredit;
+    const seimbang = selisih === 0;
+
+    res.json({
+        sampai: sampai || null,
+        akun: hasil,
+        check: {
+            total_debit: totalDebit,
+            total_kredit: totalKredit,
+            selisih,
+            seimbang
+        }
+    });
 });
 
 export const labaRugi = wrapAsync(async (req, res) => {
@@ -53,8 +76,16 @@ export const labaRugi = wrapAsync(async (req, res) => {
         const debit = Number(r.debit || 0), kredit = Number(r.kredit || 0);
         const net = norm === "debit" ? debit - kredit : kredit - debit;
         if (kategori === "pendapatan") pendapatan += net;
-        if (kategori === "biaya") biaya += net;
+        if (kategori === "beban") biaya += net;
     }
-    res.json({ periode: { dari: dari || null, sampai: sampai || null }, pendapatan, biaya, laba_rugi: pendapatan - biaya });
+    res.json({
+        periode: {
+            dari: dari || null,
+            sampai: sampai || null
+        },
+        pendapatan, 
+        biaya, 
+        laba_rugi: pendapatan - biaya
+    });
 
 });
